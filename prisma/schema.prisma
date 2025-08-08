@@ -1,0 +1,404 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      UserRole @default(TEACHER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  classes    TeacherClass[]
+  observations Observation[]
+  notes      Note[]
+  goals      Goal[]
+  achievements UserAchievement[]
+  settings   UserSettings?
+  interventionStrategies InterventionStrategy[]
+  behaviorCategories BehaviorCategory[]
+  behaviors Behavior[]
+  environments Environment[]
+  observationTasks ObservationTask[]
+  goalProgress GoalProgress[]
+  syncQueue   SyncQueue[]
+
+  @@map("users")
+}
+
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  grade       String?  // "Okul Öncesi", "1. Sınıf" vb.
+  schoolYear  String   // "2024-2025"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  teachers    TeacherClass[]
+  students    Student[]
+  tasks       ObservationTask[]
+
+  @@map("classes")
+}
+
+model TeacherClass {
+  id        String   @id @default(cuid())
+  teacherId String
+  classId   String
+  role      TeacherRole @default(HOMEROOM)
+  createdAt DateTime @default(now())
+
+  // Relations
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class     Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, classId])
+  @@map("teacher_classes")
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  name      String
+  age       Int?
+  notes     String?
+  diagnosis String?  // Tanı durumu
+  classId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  class     Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  observations Observation[]
+  goals      Goal[]
+  tasks      ObservationTask[]
+
+  @@map("students")
+}
+
+model ObservationTask {
+  id          String           @id @default(cuid())
+  title       String
+  description String?
+  studentId   String
+  classId     String
+  teacherId   String?
+  activity    ActivityType
+  scheduledAt DateTime
+  duration    Int              // dakika cinsinden
+  status      TaskStatus       @default(PENDING)
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class       Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher     User?       @relation(fields: [teacherId], references: [id])
+
+  @@map("observation_tasks")
+}
+
+model Goal {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  targetValue Int?
+  currentValue Int?
+  startDate   DateTime
+  endDate     DateTime?
+  status      GoalStatus @default(ACTIVE)
+  studentId   String
+  teacherId   String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher     User        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  progress    GoalProgress[]
+
+  @@map("goals")
+}
+
+model GoalProgress {
+  id        String   @id @default(cuid())
+  goalId    String
+  date      DateTime @default(now())
+  value     Int?
+  notes     String?
+  teacherId String
+  createdAt DateTime @default(now())
+
+  // Relations
+  goal    Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  teacher User    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@map("goal_progress")
+}
+
+model BehaviorCategory {
+  id          String @id @default(cuid())
+  name        String
+  description String?
+  icon        String?
+  isCustom    Boolean @default(false)
+  teacherId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  teacher     User?  @relation(fields: [teacherId], references: [id])
+  behaviors   Behavior[]
+  observations Observation[]
+
+  @@map("behavior_categories")
+}
+
+model Behavior {
+  id           String @id @default(cuid())
+  name         String
+  description  String?
+  icon         String?
+  categoryId   String
+  isCustom     Boolean @default(false)
+  teacherId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  category     BehaviorCategory @relation(fields: [categoryId], references: [id])
+  teacher      User?           @relation(fields: [teacherId], references: [id])
+  observations Observation[]
+
+  @@map("behaviors")
+}
+
+model Environment {
+  id        String @id @default(cuid())
+  name      String
+  description String?
+  isCustom  Boolean @default(false)
+  teacherId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  teacher   User?         @relation(fields: [teacherId], references: [id])
+  observations Observation[]
+
+  @@map("environments")
+}
+
+model Observation {
+  id           String      @id @default(cuid())
+  studentId    String
+  teacherId    String
+  behaviorId   String
+  environmentId String
+  categoryId   String?
+  duration     Int?        // in seconds
+  frequency    Int?        // count
+  context      String?
+  timestamp    DateTime    @default(now())
+  note         String?
+  audioNote    String?     // path to audio file
+  isTimed      Boolean     @default(false)
+  timerDuration Int?       // in seconds
+  
+  // İstediğiniz sütun yapısı
+  activity     ActivityType?
+  initiatedBy  InitiatorType?
+  response     String?
+  extraNotes   String?
+  taskId       String?
+  
+  // Offline senkronizasyon için
+  syncStatus   SyncStatus  @default(SYNCED)
+  localId      String?     // offline için local ID
+  
+  // Relations
+  student      Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher      User           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  behavior     Behavior       @relation(fields: [behaviorId], references: [id])
+  environment  Environment    @relation(fields: [environmentId], references: [id])
+  category     BehaviorCategory? @relation(fields: [categoryId], references: [id])
+  notes        Note[]
+  
+  @@map("observations")
+}
+
+model Note {
+  id           String   @id @default(cuid())
+  content      String
+  type         NoteType @default(TEXT)
+  observationId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  observation  Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  teacher      User        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId    String
+
+  @@map("notes")
+}
+
+model Achievement {
+  id          String @id @default(cuid())
+  name        String
+  description String
+  icon        String?
+  condition   String  // JSON string describing the condition
+  points      Int     @default(0)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime    @default(now())
+  progress      Int         @default(100)
+
+  // Relations
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@map("user_achievements")
+}
+
+model InterventionStrategy {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String?
+  isCustom    Boolean  @default(false)
+  teacherId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  teacher     User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@map("intervention_strategies")
+}
+
+model UserSettings {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  language             String   @default("tr")
+  notificationsEnabled Boolean  @default(true)
+  reminderTime         String?  // HH:mm format
+  modulesEnabled       String   // JSON string
+  theme                String   @default("light")
+  dataRetentionDays    Int      @default(365)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// Offline senkronizasyon için
+model SyncQueue {
+  id          String           @id @default(cuid())
+  userId      String
+  action      SyncActionType
+  entityType  String
+  entityId    String
+  data        String           // JSON string
+  status      SyncStatus       @default(PENDING)
+  createdAt   DateTime         @default(now())
+  syncedAt    DateTime?
+  error       String?
+
+  // Relations
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sync_queue")
+}
+
+// Enum definitions
+enum UserRole {
+  TEACHER
+  ADMIN
+}
+
+enum TeacherRole {
+  HOMEROOM    // Sınıf Öğretmeni
+  SUPPORT     // Destek Öğretmeni
+}
+
+enum ActivityType {
+  GROUP_LESSON     // Grup Dersi
+  INDIVIDUAL_LESSON // Bireysel Ders
+  PARK_TIME        // Park Saati
+  MEAL_TIME        // Yemek Saati
+  FREE_PLAY        // Serbest Oyun
+  CIRCLE_TIME      // Halka Zamanı
+  ART_ACTIVITY     // Sanat Etkinliği
+  MUSIC_TIME       // Müzik Zamanı
+  OTHER           // Diğer
+}
+
+enum InitiatorType {
+  TEACHER         // Öğretmen
+  STUDENT         // Öğrenci
+  PEER            // Akran
+  OTHER           // Diğer
+}
+
+enum TaskStatus {
+  PENDING         // Bekliyor
+  IN_PROGRESS     // Devam Ediyor
+  COMPLETED       // Tamamlandı
+  MISSED          // Kaçırıldı
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+enum NoteType {
+  TEXT
+  AUDIO
+  VOICE_TO_TEXT
+}
+
+enum SyncStatus {
+  SYNCED          // Senkronize edildi
+  PENDING         // Bekliyor
+  FAILED          // Başarısız
+  LOCAL_ONLY      // Sadece local
+}
+
+enum SyncActionType {
+  CREATE
+  UPDATE
+  DELETE
+}
