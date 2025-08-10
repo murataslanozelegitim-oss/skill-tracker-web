@@ -1,7 +1,7 @@
 <<<<<<< HEAD
-# 🚀 Welcome to Z.ai Code Scaffold
+# 🚀 İçeriği Z.ai ile hazırladım.
 
-A modern, production-ready web application scaffold powered by cutting-edge technologies, designed to accelerate your development with [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
+ [Z.ai](https://chat.z.ai)'s AI-powered coding assistance.
 
 ## ✨ Technology Stack
 
